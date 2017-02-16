@@ -1,0 +1,47 @@
+With each trial, an image will appear on the screen. All images will appear as white noise. However, there will be a target shape hidden in half of the images. Your task is to identify whether the image in each trial contains the target. We expect these targets to be hard to see, but do the best you can. 
+
+At the beginning of each trial, an image will appear and remain on the screen until you make your decision. Once you have decided whether the target is present in the image, click the “no” button ( ‘ z ‘ ) if you do not see the target, and click the “yes” button ( ‘ / ‘ )  if you do see the target.
+
+You will be timed throughout the task, so please make a selection as soon as you have come to a decision. 
+
+
+
+
+Press the SPACEBAR to continue 
+~The images below will help you understand what the targets will look like during the experiment. The left image shows a target that has not been overlaid with white noise. The middle image shows a target that has been overlaid with a small amount of white noise. The right image shows a target that has been overlaid with a lot of white noise. Please take a moment to identify the target in the two noisy images.
+~Press the SPACEBAR once you are ready to continue
+~To make sure that you understand this task, you will complete two brief practice sessions. The first practice session is easy. The targets will be relatively easy to identify. This is to get you familiar with the task. Once you have completed the easy session, the hard practice session will begin. The hard practice session will be very difficult. This is to get you familiar with the difficulty of the task. 
+
+If you have any questions, please ask the experimenter now.
+
+
+
+
+
+
+
+
+If not, press the SPACEBAR to being the easy practice session.
+~You have now completed the easy practice session. Once again, your task is to identify the presence of a target in each image as it is presented to you. You will now be completing the hard practice session. This will be quite difficult. If you are unsure what the correct response is go with your ‘gut feeling’. People perform better when they trust their intuitions in tasks such as this. Don’t forget that 50% of the images shown to you will contain a target 
+
+If anything is still unclear, please ask the researcher for clarification now. 
+
+
+
+
+
+
+
+When you are ready, please press the SPACEBAR to begin the hard practice session.
+~You have now completed the hard practice session. The experimental session will be even harder than the session you just completed. Remember that if you are unsure, people tend to perform better on this task when trusting their ‘gut’. Again, don’t forget that 50% of the images shown to you will contain a target.
+
+If anything is still unclear, please ask the researcher for clarification now. 
+
+
+
+
+
+
+
+
+When you are ready, please ask the researcher to begin the experiment.

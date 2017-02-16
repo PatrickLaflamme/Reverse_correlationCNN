@@ -1,0 +1,8 @@
+*.RData
+*.rdata
+*.csv
+*.mat
+2016\ Proposal/
+CNNoutput/
+Reports/
+R\ Analysis/EXP3_csv_data/

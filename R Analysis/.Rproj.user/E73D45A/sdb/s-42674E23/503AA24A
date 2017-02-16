@@ -1,0 +1,21 @@
+{
+    "collab_server" : "",
+    "contents" : "---\ntitle: \"Reverse Correlation Human Data Analysis\"\nauthor: \"Patrick Laflamme\"\noutput: html_document\n---\n\n```{r setup, include=FALSE}\nknitr::opts_chunk$set(echo = TRUE)\nlibrary(dplyr)\nlibrary(plyr)\nlibrary(R.matlab)\n\nload_data <- function(fileloc, filepattern){\n  \n  files <- list.files(fileloc, full.names = T)\n  \n  files <- files[grep(filepattern, files)]\n  \n  data <- data.frame()\n  \n  for(file in files){\n    \n    newdata <- read.csv(file)\n    \n    \n    data <- rbind(data, newdata)\n    \n  }\n  \n  return(data)\n}\n```\n\n## R Markdown\n\nThis is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.\n\nWhen you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:\n\n```{r cars}\nsummary(cars)\n```\n\n## Including Plots\n\nYou can also embed plots, for example:\n\n```{r pressure, echo=FALSE}\nplot(pressure)\n```\n\nNote that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.\n",
+    "created" : 1484000755918.000,
+    "dirty" : true,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "2742180255",
+    "id" : "503AA24A",
+    "lastKnownWriteTime" : 8320800952261095168,
+    "last_content_update" : 1484000790537,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}

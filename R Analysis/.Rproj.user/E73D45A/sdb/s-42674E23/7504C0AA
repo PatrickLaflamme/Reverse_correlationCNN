@@ -1,0 +1,20 @@
+{
+    "collab_server" : "",
+    "contents" : "library(dplyr)\nlibrary(plyr)\nlibrary(R.matlab)\n\nload_data <- function(fileloc, filepattern){\n  \n  files <- list.files(fileloc, full.names = T)\n  \n  files <- files[grep(filepattern, files)]\n  \n  data <- data.frame()\n  \n  for(file in files){\n    \n    newdata <- read.csv(file)\n    \n    \n    data <- rbind(data, newdata)\n    \n  }\n  \n  return(data)\n}",
+    "created" : 1484000736181.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "4289329556",
+    "id" : "7504C0AA",
+    "lastKnownWriteTime" : 1481151551,
+    "last_content_update" : 1481151551,
+    "path" : "~/Dropbox/Reverse_Correlation/R Analysis/AnalyseData.R",
+    "project_path" : "AnalyseData.R",
+    "properties" : {
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

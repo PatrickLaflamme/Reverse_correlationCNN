@@ -1,0 +1,297 @@
+---
+title: "Welfare Analysis"
+author: "Patrick Laflamme"
+date: "December 21, 2016"
+output: 
+  html_document: 
+    fig_caption: yes
+    fig_height: 7
+    fig_width: 9
+---
+
+generate the anti-ci and make predictions with that.
+
+```{r setup, include=FALSE}
+library(rcicr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(cowplot)
+library(psych)
+library(jpeg)
+
+load("4138635/R Materials for CIs/kp1_seed_NA_time_Jan_22_2015_12_24.Rdata")
+
+scatterhist = function(x, y, xlab="", ylab="", ylim = NULL, xlim=NULL){
+  zones=matrix(c(1,0,3,2), ncol=2, byrow=TRUE)
+  layout(zones, widths=c(4/5,1/5), heights=c(1/5,4/5))
+  xhist = hist(x, plot=FALSE)
+  yhist = hist(y, plot=FALSE)
+  top = max(c(xhist$counts, yhist$counts))
+  par(mar=c(0,3,1,1))
+  barplot(xhist$counts, axes=FALSE, ylim=c(0, top), space=0)
+  par(mar=c(3,0,1,1))
+  barplot(yhist$counts, axes=FALSE, xlim=c(0, top), ylim = xlim, space=0, horiz=TRUE)
+  par(mar=c(3,3,1,1))
+  plot(x,y, ylim=ylim, xlim=xlim)
+  par(oma=c(3,3,0,0))
+  mtext(xlab, side=1, line=1, outer=TRUE, adj=0, 
+    at=.6 * (mean(x) - min(x))/(max(x)-min(x)))
+  mtext(ylab, side=2, line=1, outer=TRUE, adj=0, 
+    at=(.6 * (mean(y) - min(y))/(max(y) - min(y))))
+}
+
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background
+
+The goal here is to predict the probability of the generated image being selected as a welfare recipient. We derive the probability of being chosen by taking the proportion of responses from all participants in each study. 
+
+## Internal Analyses
+
+Let's start by making internal predictions - (eg. using study 1 CI to predict study 1 data). This is to check if there is anything to this prediction at all.
+
+### Study 1
+
+```{r Loading the Study 1 data}
+#--------------------
+#---- Study 1 -------
+#--------------------
+
+welfaredata1 <- read.csv("Study1_ReverseCorrelationDataLongForm_codedmissingvalues.csv")
+
+# Recode responses
+# 1 = Positive stim
+# 0 = Negative stim
+welfaredata1$response <- (welfaredata1$response * 2) - 1
+
+# Indicate repeated trials (pic > 400)
+welfaredata1 <- subset(welfaredata1, pic <= 400)
+
+#load the CI and antiCI for the data
+CI1 <- matrix(imager::load.image("./cis/Study1_CI.jpg"), nrow=512)
+
+#create a storage variable for the correlation between the
+#positive noise stimulus and the CI
+poscor1 <- c()
+
+#create a storage variable for the correlation between the
+#negative noise stimulus and the CI
+negcor1 <- c()
+
+for(i in 0:399){
+  
+  pos <- matrix(imager::load.image(paste("MyGennedStims/kp1_0.994736842105263", sprintf("%05d_ori.jpg", i), sep='_')), nrow=512)
+  
+  neg <- matrix(imager::load.image(paste("MyGennedStims/kp1_0.994736842105263", sprintf("%05d_inv.jpg", i), sep='_')), nrow=512)
+  
+  poscor1 <- c(poscor1, cor(c(CI1), c(pos)))
+  
+  negcor1 <- c(negcor1, cor(c(CI1), c(neg)))
+}
+
+```
+
+### Internal Prediction of Study 1
+
+Let's test the predictive power of the correlation between each image and the probability of selection.
+
+```{r testing the internal predictive power}
+
+stimprams <- stimuli_params$pat3
+
+#group the welfare data by picture ID number. exclude any missing responses.
+welfaregroup <- group_by(filter(welfaredata1, response %in% c(-1,1)), pic)
+
+#generate the CI.
+avImdiff <- welfaregroup$response %*% do.call(rbind, replicate(121, as.matrix(stimprams), simplify=FALSE))[welfaredata1$response %in% c(-1,1),]
+avImdiff <- avImdiff-min(avImdiff)
+avImdiff <- avImdiff/max(avImdiff)
+avImdiff <- avImdiff*2 -1
+
+sinusioudCorsdiff <- cor(t(avImdiff), t(stimprams))
+
+Pyes <- summarise(welfaregroup, mean = mean(response*0.5+0.5))
+
+cor.test(t(sinusioudCorsdiff), Pyes$mean)
+```
+
+There is a near perfect prediction of Selection Probility within Study 1. Blue line is line of best fit. Red line is at chance selection. 
+
+```{r Internal Prediction of Study 1, echo=FALSE}
+plot(t(sinusioudCorsdiff), Pyes$mean, ylim = c(0,1), xlab = "Image-CI correlation", ylab = "Probability of Selection")
+abline(lm(Pyes$mean~t(sinusioudCorsdiff)), col='blue')
+abline(0.5,0, col='red')
+text(x = -0.1, y = 0.05, labels = paste("r =", round(cor(t(sinusioudCorsdiff), Pyes$mean), 2)))
+title(outer="Study1 - pred Welfare")
+```
+
+### Study 2
+
+Study 2 is split into two parts: in Part 1, participants selected welfare recipients, in Part 2, participants selected non-welfare recipients.
+
+```{r loading the Study 2 data}
+
+welfaredata2a <- read.csv("Study2_ReverseCorrelations_Welfare_LongForm.csv")
+
+welfaredata2b <- read.csv("Study2_ReverseCorrelations_NonWelfare_LongForm.csv")
+
+
+# Recode responses
+# 1 = Positive stim
+# 0 = Negative stim
+welfaredata2a$response <- (welfaredata2a$response * 2) - 1
+
+welfaredata2b$response <- (welfaredata2b$response * 2) - 1
+
+
+# Indicate repeated trials (pic > 400)
+welfaredata2a <- subset(welfaredata2a, pic <= 400)
+
+welfaredata2b <- subset(welfaredata2b, pic <= 400)
+
+CI2a <- matrix(imager::load.image("./cis/Study2_Welfare_CI.jpg"), nrow=512)
+
+CI2b <- matrix(imager::load.image("./cis/Study2_nonWelfare_CI.jpg"), nrow=512)
+
+poscor2a <- c()
+negcor2a <- c()
+
+poscor2b <- c()
+negcor2b <- c()
+
+for(i in 0:399){
+  
+  pos <- matrix(imager::load.image(paste("MyGennedStims/kp1_0.994736842105263", sprintf("%05d_ori.jpg", i), sep='_')), nrow=512)
+  
+  neg <- matrix(imager::load.image(paste("MyGennedStims/kp1_0.994736842105263", sprintf("%05d_inv.jpg", i), sep='_')), nrow=512)
+  
+  poscor2a <- c(poscor2a, cor(c(CI2a), c(pos)))
+  
+  negcor2a <- c(negcor2a, cor(c(CI2a), c(neg)))
+  
+  poscor2b <- c(poscor2b, cor(c(CI2b), c(pos)))
+  
+  negcor2b <- c(negcor2b, cor(c(CI2b), c(neg)))
+}
+
+
+```
+
+#### Internal Prediction of Part 1
+
+Here we try to predict internally from part 1 of Study 2, where participants are told to identify the image that looks most like a welfare recipient.
+
+```{r testing the internal predictive power - Study2a}
+
+#group the welfare data by picture ID number. exclude any missing responses.
+welfaregroup <- group_by(filter(welfaredata2a, response %in% c(-1,1)), pic)
+
+#generate the CI.
+avImdiff <- welfaregroup$response %*% do.call(rbind, replicate(123, as.matrix(stimprams), simplify=FALSE))[welfaredata2a$response %in% c(-1,1),]
+avImdiff <- avImdiff-min(avImdiff)
+avImdiff <- avImdiff/max(avImdiff)
+avImdiff <- avImdiff*2 -1
+
+sinusioudCorsdiff2a <- cor(t(avImdiff), t(stimprams))
+
+Pyes2a <- summarise(welfaregroup, mean = mean(response*0.5+0.5))
+
+cor.test(t(sinusioudCorsdiff2a), Pyes2a$mean)
+```
+
+As in study 1, the predictive capabilities are really high (a near perfect correlation between the similarity between image and CI and probability of selection).
+
+```{r Internal Prediction of Study 2a, echo=FALSE}
+plot(t(sinusioudCorsdiff2a), Pyes2a$mean, ylim = c(0,1), xlab = "Image-CI correlation", ylab = "Probability of Selection")
+abline(lm(Pyes2a$mean~t(sinusioudCorsdiff2a)), col='blue')
+abline(0.5,0, col='red')
+text(x = -0.1, y = 0.05, labels = paste("r =", round(cor(t(sinusioudCorsdiff2a), Pyes2a$mean), 2)))
+title(outer="Study2 - pred Welfare")
+```
+
+#### Internal Prediction of Part 2
+
+```{r testing the internal predictive power Study 2b}
+
+#group the welfare data by picture ID number. exclude any missing responses.
+welfaregroup <- group_by(filter(welfaredata2b, response %in% c(-1,1)), pic)
+
+#generate the CI.
+avImdiff <- welfaregroup$response %*% do.call(rbind, replicate(115, as.matrix(stimprams), simplify=FALSE))[welfaredata2b$response %in% c(-1,1),]
+avImdiff <- avImdiff-min(avImdiff)
+avImdiff <- avImdiff/max(avImdiff)
+avImdiff <- avImdiff*2 -1
+
+sinusioudCorsdiff2b <- cor(t(avImdiff), t(stimprams))
+
+Pyes2b <- summarise(welfaregroup, mean = mean(response*0.5+0.5))
+
+cor.test(t(sinusioudCorsdiff2b), Pyes2b$mean)
+```
+
+As in Study 1 and in Part 1 of Study 2, we see an absurdly high correlation. This is because the CI depends on the data, and then we are prediction the data from the CI. 
+
+```{r Internal Prediction of Study 2b, echo=FALSE}
+plot(t(sinusioudCorsdiff2b), Pyes2b$mean, ylim = c(0,1), xlab = "Image-CI correlation", ylab = "Probability of Selection")
+abline(lm(Pyes2b$mean~t(sinusioudCorsdiff2b)), col='blue')
+abline(0.5,0, col='red')
+text(x = -0.1, y = 0.05, labels = paste("r =", round(cor(t(sinusioudCorsdiff2b), Pyes2b$mean), 2)))
+title(outer="Study2 - pred non-Welfare")
+```
+
+In order to get around this and test things more realistically (less overfit) let's cross-test (predict study 2a with study 1 CI, study 2b with study 2a CI etc.). 
+
+## External Analyses
+
+Predict the two Study 2 data sets with the Study 1 CI. Here we expect smaller R^2 than the internal predictions because there is less room for overfitting.
+
+### Predict with Study 1 CI
+
+#### Study 2a - Welfare
+```{r predicting Studies 2a (Welfare) from Study 1 CI}
+cor.test(t(sinusioudCorsdiff), Pyes2a$mean)
+```
+
+The correlation seems to have switched directions. Is this a code error?
+
+```{r Predict Study 2a from Study 1 CI, echo=FALSE}
+plot(t(sinusioudCorsdiff), Pyes2a$mean, ylim = c(0,1), xlab = "Image-CI correlation from Study 1", ylab = "Probability of Selection in Study 2a")
+abline(lm(Pyes2a$mean~t(sinusioudCorsdiff)), col='blue')
+abline(0.5,0, col='red')
+text(x = -0.1, y = 0.05, labels = paste("r =", round(cor(t(sinusioudCorsdiff), Pyes2a$mean), 2)))
+```
+
+#### Study 2b - non-Welfare
+```{r predicting Studies 2b from Study 1 CI}
+cor.test(t(sinusioudCorsdiff), Pyes2b$mean)
+```
+
+Same here. There seems to be a reversal of the predicted direction. We would expect to see a positive correlation between Study 1 and Study 2a because the participants were supposed to be searching for the same thing. However, it seems that the relationship is negative. Now, looking at Study 2b, we would expect that the relationship would be negative, since participants in Study 2b did the opposite of what the participants in Study 1 did (Study 2b were looking for non-Welfare participants.)
+
+```{r Predict Study 2b from Study 1 CI, echo=FALSE}
+plot(t(sinusioudCorsdiff), Pyes2b$mean, ylim = c(0,1), xlab = "Image-CI correlation from Study 1", ylab = "Probability of Selection in Study 2b")
+abline(lm(Pyes2b$mean~t(sinusioudCorsdiff)), col='blue')
+abline(0.5,0, col='red')
+text(x = -0.1, y = 0.05, labels = paste("r =", round(cor(t(sinusioudCorsdiff), Pyes2b$mean), 2)))
+```
+
+We can clearly see the relationships are in the wrong direction.
+
+Sanity Check: What about predicting 2b with 2a. Here, we would predict a -ve correlation since these two were given opposite tasks as well.
+
+```{r predicting Study 2b from Study 2a CI}
+cor.test(t(sinusioudCorsdiff2a), Pyes2b$mean)
+```
+
+Okay we seem to have a relationship in the right direction on this one... So what happened with Study 1? Perhaps the Welfare and non-Welfare datasets are switched?
+
+```{r Predict Study 2b from Study 2a CI, echo=FALSE}
+plot(t(sinusioudCorsdiff2a), Pyes2b$mean, ylim = c(0,1), xlab = "Image-CI correlation from Study 2a", ylab = "Probability of Selection in Study 2b")
+abline(lm(Pyes2b$mean~t(sinusioudCorsdiff2a)), col='blue')
+abline(0.5,0, col='red')
+text(x = -0.1, y = 0.05, labels = paste("r =", round(cor(t(sinusioudCorsdiff2a), Pyes2b$mean), 2)))
+```
+

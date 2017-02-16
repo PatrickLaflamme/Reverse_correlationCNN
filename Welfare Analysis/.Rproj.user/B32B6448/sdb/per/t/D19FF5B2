@@ -1,0 +1,20 @@
+{
+    "collab_server" : "",
+    "contents" : "# ========================================================================\n#\n# The Relationship Between Mental Representations of Welfare Recipients and \n# Attitudes Toward Welfare\n#\n# Brown-Ianuzzi, Dotsch, Cooley, & Payne (in press)\n#\n# Script to compute Classification Images for Study 1\n#\n# ========================================================================\n\nlibrary(rcicr)\nlibrary(dplyr)\nlibrary(tidyr)\nlibrary(ggplot2)\nlibrary(cowplot)\nlibrary(psych)\nlibrary(jpeg)\n\n# Read welfare data (Study 2)\nwelfaredata <- read.csv('../Data/Sample1_DATA_long.csv')\n\n# Recode responses\n# 1 = Positive stim\n# 0 = Negative stim\nwelfaredata$response <- (welfaredata$response * -2) + 1\n\n# Indicate repeated trials (pic > 400)\nwelfaredata <- subset(welfaredata, pic <= 400)\nwelfareCIs <- batchGenerateCI2IFC(welfaredata, 'SubjectID', 'pic', 'response', 'pat3', './Conversion from Python to R/kp1_seed_NA_time_Jan_22_2015_12_24.Rdata')\nwelfareantiCIs <- batchGenerateCI2IFC(welfaredata, 'SubjectID', 'pic', 'response', 'pat3', './Conversion from Python to R/kp1_seed_NA_time_Jan_22_2015_12_24.Rdata', antiCI = T)\nnames(welfareantiCIs) <- paste0(names(welfareantiCIs), \"_anti\")\n\n# Compute CIs with constant scaling (using autoscale)\nallCIs <- c(welfareCIs, welfareantiCIs)\nallCIs <- allCIs[!names(allCIs) %in% c('autoscaling.constant', 'autoscaling.constant_anti')]\nallCIs <- autoscale(allCIs, saveasjpegs = T)\n\n# Group CIs\ngroupCIs <- list(\n  welfare=generateCI2IFC(welfaredata$pic, welfaredata$response, 'pat3', './Conversion from Python to R/kp1_seed_NA_time_Jan_22_2015_12_24.Rdata'),\n  antiwelfare=generateCI2IFC(welfaredata$pic, welfaredata$response, 'pat3', './Conversion from Python to R/kp1_seed_NA_time_Jan_22_2015_12_24.Rdata', antiCI = T)\n)\n\ngroupCIs <- autoscale(groupCIs, saveasjpegs = T)\n\nrm(allCIs, welfareCIs, welfareantiCIs)\nsave.image('Study 1.Rdata')\n",
+    "created" : 1481308304371.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "88538628",
+    "id" : "D19FF5B2",
+    "lastKnownWriteTime" : 1477936824,
+    "last_content_update" : 1477936824,
+    "path" : "~/Dropbox/Reverse_Correlation/Welfare Analysis/4138635/R Materials for CIs/Study1Analysis.R",
+    "project_path" : "4138635/R Materials for CIs/Study1Analysis.R",
+    "properties" : {
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

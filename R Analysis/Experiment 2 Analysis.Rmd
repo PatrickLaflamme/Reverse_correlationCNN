@@ -1,0 +1,426 @@
+---
+title: "Reverse Correlation Expt 2 Analysis"
+autor: "Patrick Laflamme"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(R.matlab)
+library(ggplot2)
+library(psych)
+```
+
+## Define Some Important Functions
+
+```{r Function Definitions}
+import_PartData <- function(fileDir){
+  #get files in given path
+  files <- list.files(path = fileDir, ".csv", full.names = T)
+  
+  #marker to create new dataframe
+  new <- T
+  
+  #do for each file in the directory
+  for(file in files){
+    
+    #read the file into a dataframe
+    data <- read.csv(file, row.names=NULL,stringsAsFactors = F,sep = ',')
+    
+    #if this is the first one, create an output dataframe
+    if(new){
+      outdata <- data
+      new <- F
+    }
+    else{
+      #otherwise append it to the existing dataframe
+      outdata <- rbind(outdata, data)
+    }
+    
+  }
+  
+  #column name housekeeping
+  age <- colnames(outdata)[2]
+  colnames(outdata)[2]<- colnames(outdata)[3]
+  colnames(outdata)[3]<- age
+  
+  #convert to factors and do some more datacleaning
+  outdata <- outdata %>% mutate(Answer = as.numeric(replace(Answer, Answer=="NULL", NA)), Repeat. = as.numeric(replace(Repeat., Repeat. != "0", "1")), Target_Type = as.factor(Target_Type), Experiment_Phase = as.factor(Experiment_Phase)) %>% as.data.frame()
+  
+  gender <- outdata$Age
+  outdata$Age <- outdata$Sex.2.male.3.female.4.other.
+  outdata$Sex.2.male.3.female.4.other. <- gender
+  
+  remove(gender)
+  
+  return(outdata)
+}
+
+calculate_imageWise_correlations <- function(fileDir, partData, targetFile){
+  #find the .mat files in the given directory.
+  files <- list.files(fileDir, full.names = T, pattern = ".mat")
+  
+  #get all of the IDs to search the files for
+  IDs <- as.character(unique(interaction(partData$Participant_Number, partData$Session_Number, sep="_")))
+  
+  #Now load the targets before the loop. readMat is slow, let's do it as few times as possible.
+  targets <- readMat(targetFile)
+  
+  partData$RelevantImageWiseCorrelation <- NA
+  partData$nonRelevantImageWiseCorrelation <- NA
+  
+  #iterate through the IDs
+  for(ID in IDs){
+    
+    #convert ID to numbers for accessing PartData
+    ParticipantNumber <- as.numeric(strsplit(ID, "_")[[1]][1])
+    SessionNumber <- as.numeric(strsplit(ID, "_")[[1]][2])
+    TargetID <- as.numeric(unique(filter(partData, Participant_Number == ParticipantNumber, Session_Number == SessionNumber)$Target_Type))
+    
+    #select the relevant file.
+    file <- files[grep(paste("/",ID,".mat",sep=''), files)]
+    
+    #load the relevant file.
+    data <- readMat(file)
+    
+    #Discard data that isn't useful
+    data <- array(aperm(data$whitenoise,c(2,1,3)), c(2500,2000))
+    
+    #load the appropriate target image into memory.
+    correctTargetImage <- array(t(targets[[TargetID]]), c(2500))
+    #incorrectTargetImage <- array(targets[[-TargetID]], c(2500))
+    
+    #now calculate the correlations
+    correctCorrelations <- apply(data, 2, cor, y=correctTargetImage)
+    #incorrectCorrelations <- apply(data, 2, cor, y=incorrectTargetImage)
+    
+    partData$RelevantImageWiseCorrelation[partData$Participant_Number==ParticipantNumber & partData$Session_Number==SessionNumber & partData$Experiment_Phase==" experimental"] <- correctCorrelations[partData$Trial_Number[partData$Participant_Number==ParticipantNumber & partData$Session_Number==SessionNumber & partData$Experiment_Phase==" experimental"]]
+    
+  }
+  
+  return(partData)
+}
+
+calculate_CI_correlations <- function(fileDir, partData, EXPNAME='EXP2'){
+  #find the .mat files in the given directory.
+  files <- list.files(fileDir, full.names = T, pattern = ".mat")
+  
+  #get all of the IDs to search the files for
+  IDs <- as.character(unique(interaction(partData$Participant_Number, partData$Session_Number, sep="_")))
+  
+  #iterate through the IDs
+  for(ID in IDs){
+    
+    #convert ID to numbers for accessing PartData
+    ParticipantNumber <- as.numeric(strsplit(ID, "_")[[1]][1])
+    SessionNumber <- as.numeric(strsplit(ID, "_")[[1]][2])
+    TargetID <- as.numeric(unique(filter(partData, Participant_Number == ParticipantNumber, Session_Number == SessionNumber)$Target_Type))
+    
+    #select the relevant file.
+    file <- files[grep(paste("/",ID,".mat",sep=''), files)]
+    
+    #load the relevant file.
+    data <- readMat(file)
+    
+    #Discard data that isn't useful
+    data <- array(aperm(data$whitenoise,c(2,1,3)), c(2500,2000))
+    
+    data <- data[,partData$Trial_Number[partData$Participant_Number==ParticipantNumber & partData$Session_Number==SessionNumber & partData$Experiment_Phase==" experimental"]]
+    
+    responses <- partData$Response[partData$Participant_Number==ParticipantNumber & partData$Session_Number==SessionNumber & partData$Experiment_Phase==" experimental"]*2 - 1
+    
+    data <- t(t(data) * responses)
+    
+    if(SessionNumber==1){
+      assign(paste0('image', ParticipantNumber), as.matrix(rowSums(data), nrow=1))
+    }
+    else{
+      assign(paste0('image', ParticipantNumber), cbind(get(paste0('image', ParticipantNumber)), as.matrix(rowSums(data), nrow=1)))
+    
+      toPNG <- imager::as.cimg(rowSums(get(paste0('image', ParticipantNumber))))
+      
+      imager::save.image(toPNG, file = paste0("CIs/",EXPNAME,"/", ParticipantNumber, ".png"))
+    }
+    
+  }
+  for(ID in IDs){
+    
+    #convert ID to numbers for accessing PartData
+    ParticipantNumber <- as.numeric(strsplit(ID, "_")[[1]][1])
+    SessionNumber <- as.numeric(strsplit(ID, "_")[[1]][2])
+    TargetID <- as.numeric(unique(filter(partData, Participant_Number == ParticipantNumber, Session_Number == SessionNumber)$Target_Type))
+    
+    #select the relevant file.
+    file <- files[grep(paste("/",ID,".mat",sep=''), files)]
+    
+    #load the relevant file.
+    data <- readMat(file)
+    
+    #Discard data that isn't useful
+    data <- array(aperm(data$whitenoise,c(2,1,3)), c(2500,2000))
+      
+    #now calculate the correlations
+    CICorrelations <- apply(data, 2, cor, y=rowSums(get(paste0('image', ParticipantNumber))))
+    #incorrectCorrelations <- apply(data, 2, cor, y=incorrectTargetImage)
+    
+    partData$CIImageWiseCorrelation[partData$Participant_Number==ParticipantNumber & partData$Session_Number==SessionNumber & partData$Experiment_Phase==" experimental"] <- CICorrelations[partData$Trial_Number[partData$Participant_Number==ParticipantNumber & partData$Session_Number==SessionNumber & partData$Experiment_Phase==" experimental"]]
+  
+  }
+  return(partData)
+}
+
+calc_dprime <- function(data){
+  
+  pFAs <- summarise(group_by(filter(data, Answer==0), Participant_Number, Experiment_Phase), pFAs=mean(Response))
+  
+  pHIT <- summarise(group_by(filter(data, Answer==1), Participant_Number, Experiment_Phase), pHIT=mean(Response))
+  
+  output <- merge(pHIT, pFAs)
+  
+  output <- mutate(output, pHIT = plyr::mapvalues(pHIT, from = c(0, 1), to = c(1/(80*2), (80*2-1)/(80*2))), pFAs = plyr::mapvalues(pFAs, from = c(0, 1), to = c(1/(80*2), (80*2-1)/(80*2))))
+  
+  output <- mutate(output, dprime = qnorm(pHIT) - qnorm(pFAs), ln_beta = (qnorm(pFAs)**2 - qnorm(pHIT)**2)/2)
+  
+  return(output)
+}
+
+
+```
+
+## Import the Data and Add the Active v Passive designations.
+
+Here we will import the data, add the associated Active v Passive Designations, and then separate the training vs. experimental data.
+
+```{r Import Data}
+
+ParticipantData <- import_PartData("/Volumes/Storage/Experiment_Data/Reverse_Correlation_EXP2/data/")
+
+ParticipantDataCorrelations <- calculate_imageWise_correlations("/Volumes/Storage/Experiment_Data/Reverse_Correlation_EXP2/data/", ParticipantData, "targets4.mat")
+
+ParticipantDataCorrelations <- calculate_CI_correlations("/Volumes/Storage/Experiment_Data/Reverse_Correlation_EXP2/data/", ParticipantDataCorrelations, EXPNAME = 'EXP2')
+
+ExperimentalData <- filter(ParticipantDataCorrelations, Experiment_Phase == " experimental")
+
+TrainingData <- filter(ParticipantDataCorrelations, Experiment_Phase != " experimental")
+
+```
+
+## Training Data Analysis
+
+First let's use our dprime function to calculate dprime for the hard and easy practice sessions. This will help us get an idea of who is good at this, and who is bad at it. It will also clearly identify who just didn't get it.
+
+```{r Training Data, warning=FALSE}
+TrainingDprimes <-calc_dprime(TrainingData)
+```
+
+Let's plot the results.
+
+### Dprime
+
+```{r Dprime Plot, echo=FALSE}
+#create the plot.
+plot(filter(TrainingDprimes, Experiment_Phase==' easy')$dprime, filter(TrainingDprimes, Experiment_Phase==' hard')$dprime, pch=16, xlab = 'Dprime in Easy Phase', ylab = "Dprime in Hard Phase")
+
+#add participant number labels to make it easier to identify outliers.
+text(filter(TrainingDprimes, Experiment_Phase==' easy')$dprime - 0.08, filter(TrainingDprimes, Experiment_Phase==' hard')$dprime, labels = filter(TrainingDprimes, Experiment_Phase==' easy')$Participant_Number,cex = 0.5)
+
+```
+
+
+### P(hits)
+
+```{r pHIT Plot, echo=FALSE}
+#create the plot.
+plot(filter(TrainingDprimes, Experiment_Phase==' easy')$pHIT, filter(TrainingDprimes, Experiment_Phase==' hard')$pHIT, pch=16, xlab = 'P(hits) in Easy Phase', ylab = "P(hits) in Hard Phase")
+
+#add participant number labels to make it easier to identify outliers.
+text(filter(TrainingDprimes, Experiment_Phase==' easy')$pHIT - 0.003, filter(TrainingDprimes, Experiment_Phase==' hard')$pHIT, labels = filter(TrainingDprimes, Experiment_Phase==' easy')$Participant_Number,cex = 0.5)
+
+```
+
+### Ph(false alarms)
+
+```{r pFAs Plot, echo=FALSE}
+#create the plot.
+plot(filter(TrainingDprimes, Experiment_Phase==' easy')$pFAs, filter(TrainingDprimes, Experiment_Phase==' hard')$pFAs, pch=16, xlab = 'P(FAs) in Easy Phase', ylab = "P(FAs) in Hard Phase")
+
+#add participant number labels to make it easier to identify outliers.
+text(filter(TrainingDprimes, Experiment_Phase==' easy')$pFAs - 0.008, filter(TrainingDprimes, Experiment_Phase==' hard')$pFAs, labels = filter(TrainingDprimes, Experiment_Phase==' easy')$Participant_Number,cex = 0.5)
+
+```
+
+
+### ln(Beta)
+
+```{r ln(Beta) Plot, echo=FALSE}
+#create the plot.
+plot(filter(TrainingDprimes, Experiment_Phase==' easy')$ln_beta, filter(TrainingDprimes, Experiment_Phase==' hard')$ln_beta, pch=16, xlab = 'ln(Beta) in Easy Phase', ylab = "ln(Beta) in Hard Phase")
+
+#add participant number labels to make it easier to identify outliers.
+text(filter(TrainingDprimes, Experiment_Phase==' easy')$ln_beta - 0.06, filter(TrainingDprimes, Experiment_Phase==' hard')$ln_beta, labels = filter(TrainingDprimes, Experiment_Phase==' easy')$Participant_Number,cex = 0.5)
+
+```
+
+### Coherent training phase summary
+
+```{r Report average training data values}
+Summary_Dprime_data <- summarise(group_by(TrainingDprimes, Experiment_Phase), MeanPhit = mean(pHIT), SEpHit = sd(pHIT)/sqrt(n()),  MeanpFAs = mean(pFAs), SEpFAs = sd(pFAs)/sqrt(n()),  Meandprime = mean(dprime), SEdprime = sd(dprime)/sqrt(n()), Meanln_beta = mean(ln_beta), SEln_beta = sd(ln_beta)/sqrt(n()))
+
+
+Summary_Dprime_data
+```
+
+### Dprime
+
+```{r Dprime summary plot}
+#make the bars slightly separated for visual pleasure
+dodge <- position_dodge(width = 0.5)
+
+#define the error bar limits
+limits <- aes(ymax = Summary_Dprime_data$Meandprime + Summary_Dprime_data$SEdprime,
+              ymin = Summary_Dprime_data$Meandprime - Summary_Dprime_data$SEdprime)
+
+#start the plot
+p <- ggplot(data =Summary_Dprime_data, aes(x = Experiment_Phase, y = Meandprime))
+
+#now fill the plot
+dprimePlot <- p + geom_bar(stat = "identity", position = dodge) +
+  geom_errorbar(limits, position = dodge, width = 0.25) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  labs(y = "Dprime")+
+  ggtitle("Dprime by Experiment Phase") +
+  ylim(0,4.5)
+
+#clean up the environment.
+remove(p, dodge, limits)
+
+```
+
+
+### ln_beta
+
+```{r ln_beta summary plot}
+#make the bars slightly separated for visual pleasure
+dodge <- position_dodge(width = 0.5)
+
+#define the error bar limits
+limits <- aes(ymax = Summary_Dprime_data$Meanln_beta + Summary_Dprime_data$SEln_beta,
+              ymin = Summary_Dprime_data$Meanln_beta - Summary_Dprime_data$SEln_beta)
+
+#start the plot
+p <- ggplot(data =Summary_Dprime_data, aes(x = Experiment_Phase, y = Meanln_beta))
+
+#now fill the plot
+ln_betaPlot <- p + geom_bar(stat = "identity", position = dodge) +
+  geom_errorbar(limits, position = dodge, width = 0.25) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  labs(y = "Log(Beta)")+
+  ggtitle("Log(Beta) by Experiment Phase") +
+  ylim(-1.5,1.5)
+
+#clean up the environment.
+remove(p, dodge, limits)
+
+```
+
+## Experimental Data Summary
+
+```{r Summarize Experimental Phase}
+Experimental_Summary_Overall <- summarise(ExperimentalData, meanAge = mean(Age), sdAge = sd(Age), propYes = mean(Response), maxRT = max(RT), minRT = min(RT), sdRT = sd(RT), meanRT = mean(RT), total_trials = n())
+
+ Experimental_Summary_byPRTCPNT <- summarise(group_by(ExperimentalData, Participant_Number), propYes = mean(Response), numYes = sum(Response), maxRT = max(RT), minRT = min(RT), sdRT = sd(RT), meanRT = mean(RT), total_trials = n(), TotalTime = sum(RT)/60)
+
+Experimental_Summary_byTRGT <- summarise(group_by(ExperimentalData, Target_Type), propYes = mean(Response), maxRT = max(RT), minRT = min(RT), sdRT = sd(RT), meanRT = mean(RT), total_trials = n(), total_ptpts = length(unique(Participant_Number)))
+
+```
+
+### Overall summary
+```{r Experimental Results Overall}
+
+Experimental_Summary_Overall
+
+```
+
+It seems as though the overall proportion of yes's is as expected. Max RT is pretty high. Let's take a look at the distribution of RTs.
+
+```{r Overall RT plot, echo = FALSE}
+hist(ExperimentalData$RT, breaks = 1000, main = "Histogram of overall RT.", xlab = 'RT')
+```
+
+This looks good. Skewed shape as expected. Perhaps we should determine a timing cutoff?
+
+## Analysis of the Image-Wise correlations with CI and Prediction
+
+First step: aggregate likelihood of image being chosen as a "yes" given its correlation with the target.
+
+```{r CI Image-Wise Aggregate}
+#tag the images with similar IW correlations to group them later for aggregation
+ExperimentalData_CI <- mutate(ExperimentalData, RelIWCorGroup = cut(CIImageWiseCorrelation, quantile(CIImageWiseCorrelation,p = seq(0,1,length.out = 400), na.rm = T)))
+
+#use the RelIWCorGroup above to calculate probYes for each range of IW corrrelation
+Experimental_Summary_byRelIWCor_CI <- summarise(group_by(ExperimentalData_CI, RelIWCorGroup), IWcor = mean(CIImageWiseCorrelation), pYes = mean(Response))
+```
+
+Now let's go ahead and do the scatter plots so get an idea of the relationships before we do the formal stats. Here we can also identify outliers. 
+
+```{r CI IWCor-pYes scatter}
+
+with(filter(Experimental_Summary_byRelIWCor_CI), plot(IWcor, pYes, pch=16, cex=0.5, xlab = "Image-wise correlation between trial image and classification image", ylab = "Proportion of \"yes\" responses by participants"))
+
+```
+
+Now we can go ahead and calculate the correlations here.
+
+```{r CI Correlations between Image-Wise correlation and probability of Yes}
+print("Correlation:")
+with(Experimental_Summary_byRelIWCor_CI, cor.test(pYes,IWcor))
+
+```
+
+
+```{r CI Analysis Image-Wise Cor Plot, echo=FALSE}
+with(Experimental_Summary_byRelIWCor_CI, plot(IWcor, pYes, pch=16, cex=0.5, ylim = c(0,1), ylab = "Proportion of \"yes\" responses by participants", xlab = "Image-wise correlation between trial image and classification image"))
+with(Experimental_Summary_byRelIWCor_CI, abline(lm(pYes ~ IWcor)))
+
+```
+
+
+
+## Analysis of the Image-Wise correlations and Prediction
+
+First step: aggregate likelihood of image being chosen as a "yes" given its correlation with the target.
+
+```{r Image-Wise Aggregate}
+#tag the images with similar IW correlations to group them later for aggregation
+ExperimentalData <- mutate(ExperimentalData, RelIWCorGroup = cut(RelevantImageWiseCorrelation, quantile(RelevantImageWiseCorrelation,p = seq(0,1,length.out = 400), na.rm = T)))
+
+#use the RelIWCorGroup above to calculate probYes for each range of IW corrrelation
+Experimental_Summary_byRelIWCor <- summarise(group_by(ExperimentalData, RelIWCorGroup), IWcor = mean(RelevantImageWiseCorrelation), pYes = mean(Response))
+```
+
+Now let's go ahead and do the scatter plots so get an idea of the relationships before we do the formal stats. Here we can also identify outliers. 
+
+```{r IWCor-pYes scatter}
+
+with(filter(Experimental_Summary_byRelIWCor), plot(IWcor, pYes, pch=16, cex=0.5))
+
+```
+
+
+Much better. Now we can go ahead and calculate the correlations here.
+
+```{r Correlations between Image-Wise correlation and probability of Yes}
+print("Correlation:")
+with(filter(Experimental_Summary_byRelIWCor, !is.na(RelIWCorGroup)), cor.test(pYes,IWcor))
+
+```
+
+```{r Analysis Image-Wise Cor Plot, echo=FALSE}
+with(filter(Experimental_Summary_byRelIWCor, !is.na(RelIWCorGroup)), plot(IWcor, pYes, pch=16, cex=0.5, ylab = "Proportion of \"yes\" responses by participants", xlab = "Image-wise correlation between trial image and target image"))
+with(filter(Experimental_Summary_byRelIWCor, !is.na(RelIWCorGroup)), abline(lm(pYes ~ IWcor)))
+
+```
+

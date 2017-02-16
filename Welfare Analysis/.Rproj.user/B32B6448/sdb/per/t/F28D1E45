@@ -1,0 +1,28 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1481323441667.000,
+    "dirty" : false,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "F28D1E45",
+    "lastKnownWriteTime" : -4619026671587033082,
+    "last_content_update" : 1481323441667,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "cacheKey" : "juerkvnasr",
+        "caption" : "cbind(negcor, poscor)",
+        "contentUrl" : "grid_resource/gridviewer.html?env=_rs_no_env&obj=&cache_key=juerkvnasr",
+        "displayedObservations" : 400,
+        "environment" : "_rs_no_env",
+        "object" : "",
+        "totalObservations" : 400,
+        "variables" : 2
+    },
+    "relative_order" : 4,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_dataframe"
+}

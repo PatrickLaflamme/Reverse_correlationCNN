@@ -110,12 +110,14 @@ calculate_imageWise_correlations <- function(fileDir, partData, targetFile){
   return(partData)
 }
 
-calculate_CI_correlations <- function(fileDir, partData, EXPNAME='EXP2'){
+calculate_CI_correlations <- function(fileDir, partData, EXPNAME='EXP3'){
   #find the .mat files in the given directory.
   files <- list.files(fileDir, full.names = T, pattern = ".mat")
   
   #get all of the IDs to search the files for
   IDs <- as.character(unique(interaction(partData$Participant_Number, partData$Session_Number, sep="_")))
+  
+  images <- list()
   
   #iterate through the IDs
   for(ID in IDs){
@@ -149,6 +151,9 @@ calculate_CI_correlations <- function(fileDir, partData, EXPNAME='EXP2'){
       toPNG <- imager::as.cimg(rowSums(get(paste0('image', ParticipantNumber))))
       
       imager::save.image(toPNG, file = paste0("CIs/",EXPNAME,"/", ParticipantNumber, ".png"))
+      
+      images[paste0('image', ParticipantNumber)] <- as.matrix(get(paste0('image', ParticipantNumber)))
+
     }
     
   }
@@ -176,6 +181,10 @@ calculate_CI_correlations <- function(fileDir, partData, EXPNAME='EXP2'){
     partData$CIImageWiseCorrelation[partData$Participant_Number==ParticipantNumber & partData$Session_Number==SessionNumber & partData$Experiment_Phase=="experimental"] <- CICorrelations[partData$Trial_Number[partData$Participant_Number==ParticipantNumber & partData$Session_Number==SessionNumber & partData$Experiment_Phase=="experimental"]]
     
   }
+  
+  images <- list(image1 = image1, image2=image2, image3=image3, image4 = image4, image6=image6, image7=image7, image9=image9, image10=image10, image11=image11, image13=image3, image14=image14, image15=image15, image16=image16, image18=image18)
+
+  save(file = "imagesExp3.RData", images)
   return(partData)
 }
 
@@ -283,7 +292,7 @@ legend("topleft", legend = levels(filter(TrainingDprimes, Experiment_Phase=='eas
 ## Coherent training phase summary
 
 ```{r Report average training data values}
-Summary_Dprime_data <- summarise(group_by(TrainingDprimes, Experiment_Phase, Condition), MeanPhit = mean(pHIT), SEpHit = sd(pHIT)/sqrt(n()),  MeanpFAs = mean(pFAs), SEpFAs = sd(pFAs)/sqrt(n()),  Meandprime = mean(dprime), SEdprime = sd(dprime)/sqrt(n()), Meanln_beta = mean(ln_beta), SEln_beta = sd(ln_beta)/sqrt(n()))
+Summary_Dprime_data <- summarise(group_by(TrainingDprimes, Experiment_Phase, Condition, Participant_Number), MeanPhit = mean(pHIT), SEpHit = sd(pHIT)/sqrt(n()),  MeanpFAs = mean(pFAs), SEpFAs = sd(pFAs)/sqrt(n()),  Meandprime = mean(dprime), SEdprime = sd(dprime)/sqrt(n()), Meanln_beta = mean(ln_beta), SEln_beta = sd(ln_beta)/sqrt(n()))
 
 
 Summary_Dprime_data
@@ -307,8 +316,7 @@ dprimePlot <- p + geom_bar(stat = "identity", position = dodge) +
   geom_errorbar(limits, position = dodge, width = 0.25) +
   theme_bw() +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
-  labs(y = "Dprime")+
-  ggtitle("Dprime by Experiment Phase") +
+  labs(y = "Dprime", x = "Target Difficulty")+
   guides(fill=FALSE) + 
   scale_fill_manual(values=c("red", "blue"))
 
@@ -336,15 +344,17 @@ ln_betaPlot <- p + geom_bar(stat = "identity", position = dodge) +
   geom_errorbar(limits, position = dodge, width = 0.25) +
   theme_bw() +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
-  labs(y = "Log(Beta)")+
-  ggtitle("Log(Beta) by Experiment Phase") + 
-  scale_fill_manual(values=c("red", "blue"))
+  labs(y = "Log(Beta)", x = "Target Difficulty")+
+  scale_fill_manual(values=c("red", "blue"),
+                    name = 'Group')
 
 #clean up the environment.
 remove(p, dodge, limits)
 
-plot_grid(dprimePlot, ln_betaPlot, rel_widths = c(1,1.5))
-
+postscript("~/Dropbox/Thesis/Figures/PracPhaseExp3.eps",height = 5, pointsize = 16, horizontal = F)
+par(mar=c(5,4,2,2)+0.1, oma=c(0,0,0,0))
+plot_grid( dprimePlot,ln_betaPlot, rel_widths = c(1,1.4), labels = c('A', "B"))
+dev.off()
 ```
 
 
@@ -353,7 +363,7 @@ plot_grid(dprimePlot, ln_betaPlot, rel_widths = c(1,1.5))
 ```{r Summarize Experimental Phase}
 Experimental_Summary_Overall <- summarise(ExperimentalData, meanAge = mean(Age), sdAge = sd(Age), propYes = mean(Response), maxRT = max(RT), minRT = min(RT), sdRT = sd(RT), meanRT = mean(RT), total_trials = n())
 
- Experimental_Summary_byPRTCPNT <- summarise(group_by(ExperimentalData, Participant_Number), propYes = mean(Response), numYes = sum(Response), maxRT = max(RT), minRT = min(RT), sdRT = sd(RT), meanRT = mean(RT), total_trials = n(), Condition = unique(Condition), TotalTime = sum(RT)/60)
+ Experimental_Summary_byPRTCPNT <- summarise(group_by(ExperimentalData, Participant_Number), sex = unique(Sex.1.male2.female3.other.), age = unique(Age), propYes = mean(Response), numYes = sum(Response), maxRT = max(RT), minRT = min(RT), sdRT = sd(RT), meanRT = mean(RT), total_trials = n(), Condition = unique(Condition), target = unique(Target_Type), TotalTime = sum(RT)/60)
 
 Experimental_Summary_byTRGT <- summarise(group_by(ExperimentalData, Target_Type), propYes = mean(Response), maxRT = max(RT), minRT = min(RT), sdRT = sd(RT), meanRT = mean(RT), total_trials = n(), total_ptpts = length(unique(Participant_Number)))
 
@@ -392,35 +402,41 @@ Let's do a test of proportions to be sure.
 
 ```{r Plot of Porportions of Yess, echo=FALSE}
 #calculcate the Standard error for the proportions
-Experimental_Summary_byCDTN$se <- sum(sqrt((Experimental_Summary_byCDTN$propYes*(1 - Experimental_Summary_byCDTN$propYes))/Experimental_Summary_byCDTN$total_trials))
+Experimental_Summary_byCDTN_mean <- summarise(group_by(Experimental_Summary_byPRTCPNT, Condition), se = sd(propYes)/sqrt(n()), propYes = mean(propYes))
 
 #make the bars slightly separated for visual pleasure
 dodge <- position_dodge(width = 0.5)
 
 #define the error bar limits
-limits <- aes(ymax = Experimental_Summary_byCDTN$propYes + Experimental_Summary_byCDTN$se,
-              ymin = Experimental_Summary_byCDTN$propYes - Experimental_Summary_byCDTN$se)
+limits <- aes(ymax = Experimental_Summary_byCDTN_mean$propYes + Experimental_Summary_byCDTN_mean$se,
+              ymin = Experimental_Summary_byCDTN_mean$propYes - Experimental_Summary_byCDTN_mean$se)
 
 #start the plot
-p <- ggplot(data =Experimental_Summary_byCDTN, aes(x = Condition, y = propYes))
+p <- ggplot(data =Experimental_Summary_byCDTN_mean, aes(x = Condition, y = propYes, fill = Condition))
 
 #now fill the plot
-p + geom_bar(stat = "identity", position = dodge) +
+final_pPlot <- p + geom_bar(stat = "identity", position = dodge) +
   geom_errorbar(limits, position = dodge, width = 0.25) +
   theme_bw() +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
-  labs(y = "Proportion of \"Yes\" responses")+
-  ggtitle("Proportion of \"Yes\" responses by Condition")
+  labs(y = "Proportion of false alarm responses")+
+  scale_fill_manual(values=c("red", "blue"),
+                    guide = F)
 
 #clean up the environment.
 remove(p, dodge, limits)
+
+postscript("~/Dropbox/Thesis/Figures/PyesExp3.eps", height = 5, width = 3, pointsize = 16, horizontal = F)
+par(mar=c(5,4,2,2)+0.1, oma=c(0,0,0,0))
+final_pPlot
+dev.off()
 
 ```
 
 
 ```{r test of proportions of yess between Conditons}
 
-prop.test(Experimental_Summary_byCDTN$numYes, Experimental_Summary_byCDTN$total_trials)
+t.test(propYes ~ Condition, data=Experimental_Summary_byPRTCPNT)
 
 ```
 
@@ -453,10 +469,10 @@ First step: aggregate likelihood of image being chosen as a "yes" given its corr
 
 ```{r CI Image-Wise Aggregate}
 #tag the images with similar IW correlations to group them later for aggregation
-ExperimentalData_CI <- mutate(ExperimentalData, RelIWCorGroup = cut(CIImageWiseCorrelation, quantile(CIImageWiseCorrelation,p = seq(0,1,length.out = 400))))
+ExperimentalData_CI <- mutate(ExperimentalData, RelIWCorGroup = cut(CIImageWiseCorrelation, quantile(CIImageWiseCorrelation,p = seq(0,1,length.out = 1000))))
 
 #use the RelIWCorGroup above to calculate probYes for each range of IW corrrelation
-Experimental_Summary_byRelIWCor <- summarise(group_by(ExperimentalData_CI, RelIWCorGroup, Condition), IWcor = mean(CIImageWiseCorrelation), pYes = mean(Response))
+Experimental_Summary_byRelIWCor_CI <- summarise(group_by(ExperimentalData_CI, RelIWCorGroup, Condition), IWcor = mean(CIImageWiseCorrelation), pYes = mean(Response))
 ```
 
 Now let's go ahead and do the scatter plots so get an idea of the relationships before we do the formal stats. Here we can also identify outliers. 
@@ -518,14 +534,42 @@ Good, that I is dotted.
 
 Let's plot them together to directly compare them. Lines of best fit are included and colour coded.
 
-```{r CI Analysis Image-Wise Cor Plot, echo=FALSE}
-with(filter(Experimental_Summary_byRelIWCor,Condition=="Active", !is.na(RelIWCorGroup)), plot(IWcor, pYes, pch=16, cex=0.5, ylim = c(0,1), col = 'red', ylab = "Proportion of \"yes\" responses by participants", xlab = "Image-wise correlation between trial image and target image"))
-with(filter(Experimental_Summary_byRelIWCor,Condition=="Active", !is.na(RelIWCorGroup)), abline(lm(pYes ~ IWcor), col = 'red'))
+```{r fit sigmoid curve}
 
-with(filter(Experimental_Summary_byRelIWCor,Condition=="Passive"), points(IWcor, pYes, pch=16, cex=0.5, col='blue'))
-with(filter(Experimental_Summary_byRelIWCor,Condition=="Passive"), abline(lm(pYes ~ IWcor), col='blue'))
+sigmoid = function(params, x) {
+  1/ (1 + exp(-params[1] * (x - params[2])))
+}
+
+fitmodelAct <- with(filter(Experimental_Summary_byRelIWCor_CI, Condition=="Active"), nls(pYes~1/(1 + exp(-b * (IWcor-c))), start=list(b=10,c=0)))
+
+fitmodelPas <- with(filter(Experimental_Summary_byRelIWCor_CI, Condition=="Passive"), nls(pYes~1/(1 + exp(-b * (IWcor-c))), start=list(b=10,c=0)))
+
+# get the coefficients using the coef function
+paramsPas=coef(fitmodelPas)
+paramsAct=coef(fitmodelAct)
+
+
+with(filter(Experimental_Summary_byRelIWCor_CI, Condition=="Active"), plot(sigmoid(paramsAct,IWcor), pYes))
+with(filter(Experimental_Summary_byRelIWCor_CI, Condition=="Active"), cor.test(sigmoid(paramsAct,IWcor), pYes))
+
+with(filter(Experimental_Summary_byRelIWCor_CI, Condition=="Passive"), plot(sigmoid(paramsPas,IWcor), pYes))
+with(filter(Experimental_Summary_byRelIWCor_CI, Condition=="Passive"), cor.test(sigmoid(paramsPas,IWcor), pYes))
+
+```
+
+```{r CI Analysis Image-Wise Cor Plot, echo=FALSE}
+#postscript("~/Dropbox/Thesis/Figures/IWcorCIexp3.eps", height = 5, pointsize = 16, horizontal = F)
+par(mar=c(5,4,2,2)+0.1, oma=c(0,0,0,0))
+
+with(filter(Experimental_Summary_byRelIWCor_CI,Condition=="Active", !is.na(RelIWCorGroup)), plot(IWcor, pYes, pch=16, cex=0.5, ylim = c(0,1), xlim = c(-.12,.16), col = 'red', ylab = "Proportion of \"yes\" responses by participants", xlab = "Image-wise correlation between trial image and target image"))
+with(filter(Experimental_Summary_byRelIWCor_CI, Condition=="Active"),lines(sort(IWcor), sort(predict(fitmodelAct)), col ='red'))
+
+with(filter(Experimental_Summary_byRelIWCor_CI,Condition=="Passive"), points(IWcor, pYes, pch=16, cex=0.5, col='blue'))
+with(filter(Experimental_Summary_byRelIWCor_CI, Condition=="Passive"),lines(sort(IWcor), sort(predict(fitmodelPas)), col ='blue'))
 
 legend("topright", legend = levels(filter(TrainingDprimes, Experiment_Phase=='easy')$Condition), pch = c(15,15), pt.cex = c(2,2), col = c('red', 'blue'))
+
+#dev.off()
 ```
 
 
@@ -537,7 +581,7 @@ First step: aggregate likelihood of image being chosen as a "yes" given its corr
 
 ```{r Image-Wise Aggregate}
 #tag the images with similar IW correlations to group them later for aggregation
-ExperimentalData <- mutate(ExperimentalData, RelIWCorGroup = cut(RelevantImageWiseCorrelation, quantile(RelevantImageWiseCorrelation,p = seq(0,1,length.out = 400))))
+ExperimentalData <- mutate(ExperimentalData, RelIWCorGroup = cut(RelevantImageWiseCorrelation, quantile(RelevantImageWiseCorrelation,p = seq(0,1,length.out = 1000))))
 
 #use the RelIWCorGroup above to calculate probYes for each range of IW corrrelation
 Experimental_Summary_byRelIWCor <- summarise(group_by(ExperimentalData, RelIWCorGroup, Condition), IWcor = mean(RelevantImageWiseCorrelation), pYes = mean(Response))
@@ -554,6 +598,7 @@ with(filter(Experimental_Summary_byRelIWCor,Condition=="Active"), plot(IWcor, pY
 with(filter(Experimental_Summary_byRelIWCor,Condition=="Active", is.na(RelIWCorGroup)), points(IWcor, pYes, pch=16, cex=0.5, col = 'red'))
 
 with(filter(Experimental_Summary_byRelIWCor,Condition=="Passive"), plot(IWcor, pYes, pch=16, cex=0.5, main = "Passive Condition"))
+
 
 par(mfrow=c(1,1))
 
@@ -603,12 +648,18 @@ Good, that I is dotted.
 Let's plot them together to directly compare them. Lines of best fit are included and colour coded.
 
 ```{r Analysis Image-Wise Cor Plot, echo=FALSE}
-with(filter(Experimental_Summary_byRelIWCor,Condition=="Active", !is.na(RelIWCorGroup)), plot(IWcor, pYes, pch=16, cex=0.5, ylim = c(0,1), col = 'red', ylab = "Proportion of \"yes\" responses by participants", xlab = "Image-wise correlation between trial image and target image"))
+postscript("~/Dropbox/Thesis/Figures/IWcorTargetExp3.eps", height = 5, pointsize = 16, horizontal = F)
+par(mar=c(5,4,2,2)+0.1, oma=c(0,0,0,0))
+
+
+with(filter(Experimental_Summary_byRelIWCor,Condition=="Active", !is.na(RelIWCorGroup)), plot(IWcor, pYes, pch=16, cex=0.5, ylim = c(0,1), xlim = c(-.07,.09), col = 'red', ylab = "Proportion of \"yes\" responses by participants", xlab = "Image-wise correlation between trial image and target image"))
 with(filter(Experimental_Summary_byRelIWCor,Condition=="Active", !is.na(RelIWCorGroup)), abline(lm(pYes ~ IWcor), col = 'red'))
 
 with(filter(Experimental_Summary_byRelIWCor,Condition=="Passive"), points(IWcor, pYes, pch=16, cex=0.5, col='blue'))
 with(filter(Experimental_Summary_byRelIWCor,Condition=="Passive"), abline(lm(pYes ~ IWcor), col='blue'))
 
 legend("topright", legend = levels(filter(TrainingDprimes, Experiment_Phase=='easy')$Condition), pch = c(15,15), pt.cex = c(2,2), col = c('red', 'blue'))
+
+dev.off()
 ```
 

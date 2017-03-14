@@ -109,6 +109,8 @@ calculate_CI_correlations <- function(fileDir, partData, EXPNAME='EXP2'){
   #get all of the IDs to search the files for
   IDs <- as.character(unique(interaction(partData$Participant_Number, partData$Session_Number, sep="_")))
   
+  images <- list()
+  
   #iterate through the IDs
   for(ID in IDs){
     
@@ -118,8 +120,8 @@ calculate_CI_correlations <- function(fileDir, partData, EXPNAME='EXP2'){
     TargetID <- as.numeric(unique(filter(partData, Participant_Number == ParticipantNumber, Session_Number == SessionNumber)$Target_Type))
     
     #select the relevant file.
-    file <- files[grep(paste("/",ID,".mat",sep=''), files)]
-    
+    file <- files[grep(paste("/",ID,sep=''), files)]
+    print(ID)
     #load the relevant file.
     data <- readMat(file)
     
@@ -128,7 +130,7 @@ calculate_CI_correlations <- function(fileDir, partData, EXPNAME='EXP2'){
     
     data <- data[,partData$Trial_Number[partData$Participant_Number==ParticipantNumber & partData$Session_Number==SessionNumber & partData$Experiment_Phase==" experimental"]]
     
-    responses <- partData$Response[partData$Participant_Number==ParticipantNumber & partData$Session_Number==SessionNumber & partData$Experiment_Phase==" experimental"]*2 - 1
+    responses <- partData$Response[partData$Participant_Number==ParticipantNumber & partData$Session_Number==SessionNumber & partData$Experiment_Phase==" experimental"]
     
     data <- t(t(data) * responses)
     
@@ -137,13 +139,16 @@ calculate_CI_correlations <- function(fileDir, partData, EXPNAME='EXP2'){
     }
     else{
       assign(paste0('image', ParticipantNumber), cbind(get(paste0('image', ParticipantNumber)), as.matrix(rowSums(data), nrow=1)))
-    
+      
       toPNG <- imager::as.cimg(rowSums(get(paste0('image', ParticipantNumber))))
       
       imager::save.image(toPNG, file = paste0("CIs/",EXPNAME,"/", ParticipantNumber, ".png"))
+      
+
     }
     
   }
+  
   for(ID in IDs){
     
     #convert ID to numbers for accessing PartData
@@ -159,14 +164,18 @@ calculate_CI_correlations <- function(fileDir, partData, EXPNAME='EXP2'){
     
     #Discard data that isn't useful
     data <- array(aperm(data$whitenoise,c(2,1,3)), c(2500,2000))
-      
+    
     #now calculate the correlations
     CICorrelations <- apply(data, 2, cor, y=rowSums(get(paste0('image', ParticipantNumber))))
     #incorrectCorrelations <- apply(data, 2, cor, y=incorrectTargetImage)
     
     partData$CIImageWiseCorrelation[partData$Participant_Number==ParticipantNumber & partData$Session_Number==SessionNumber & partData$Experiment_Phase==" experimental"] <- CICorrelations[partData$Trial_Number[partData$Participant_Number==ParticipantNumber & partData$Session_Number==SessionNumber & partData$Experiment_Phase==" experimental"]]
-  
+    
   }
+  
+  images <- list(image11 = image11, image12=image12, image13=image13, image14 = image14, image15=image15, image16=image16, image17=image17, image18=image18)
+
+  save(file = "imagesExp2.RData", images)
   return(partData)
 }
 
@@ -265,7 +274,7 @@ text(filter(TrainingDprimes, Experiment_Phase==' easy')$ln_beta - 0.06, filter(T
 ### Coherent training phase summary
 
 ```{r Report average training data values}
-Summary_Dprime_data <- summarise(group_by(TrainingDprimes, Experiment_Phase), MeanPhit = mean(pHIT), SEpHit = sd(pHIT)/sqrt(n()),  MeanpFAs = mean(pFAs), SEpFAs = sd(pFAs)/sqrt(n()),  Meandprime = mean(dprime), SEdprime = sd(dprime)/sqrt(n()), Meanln_beta = mean(ln_beta), SEln_beta = sd(ln_beta)/sqrt(n()))
+Summary_Dprime_data <- summarise(group_by(TrainingDprimes, Experiment_Phase), MeanPhit = mean(pHIT), SEpHit = sd(pHIT)/sqrt(n()),  MeanpFAs = mean(pFAs), SEpFAs = sd(pFAs),  Meandprime = mean(dprime), SEdprime = sd(dprime)/sqrt(n()), Meanln_beta = mean(ln_beta), SEln_beta = sd(ln_beta)/sqrt(n()))
 
 
 Summary_Dprime_data
@@ -289,8 +298,7 @@ dprimePlot <- p + geom_bar(stat = "identity", position = dodge) +
   geom_errorbar(limits, position = dodge, width = 0.25) +
   theme_bw() +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
-  labs(y = "Dprime")+
-  ggtitle("Dprime by Experiment Phase") +
+  labs(y = "Dprime", x = "Target Difficulty")+
   ylim(0,4.5)
 
 #clean up the environment.
@@ -317,12 +325,16 @@ ln_betaPlot <- p + geom_bar(stat = "identity", position = dodge) +
   geom_errorbar(limits, position = dodge, width = 0.25) +
   theme_bw() +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
-  labs(y = "Log(Beta)")+
-  ggtitle("Log(Beta) by Experiment Phase") +
+  labs(y = "Log(Beta)", x = "Target Difficulty")+
   ylim(-1.5,1.5)
 
 #clean up the environment.
-remove(p, dodge, limits)
+#remove(p, dodge, limits)
+
+postscript("~/Dropbox/Thesis/Figures/PracPhaseExp2Test.eps",height = 5, pointsize = 16, horizontal = F)
+par(mar=c(5,4,2,2)+0.1, oma=c(0,0,0,0))
+plot_grid( dprimePlot,ln_betaPlot, labels = c('A', "B"))
+dev.off()
 
 ```
 
@@ -331,7 +343,7 @@ remove(p, dodge, limits)
 ```{r Summarize Experimental Phase}
 Experimental_Summary_Overall <- summarise(ExperimentalData, meanAge = mean(Age), sdAge = sd(Age), propYes = mean(Response), maxRT = max(RT), minRT = min(RT), sdRT = sd(RT), meanRT = mean(RT), total_trials = n())
 
- Experimental_Summary_byPRTCPNT <- summarise(group_by(ExperimentalData, Participant_Number), propYes = mean(Response), numYes = sum(Response), maxRT = max(RT), minRT = min(RT), sdRT = sd(RT), meanRT = mean(RT), total_trials = n(), TotalTime = sum(RT)/60)
+ Experimental_Summary_byPRTCPNT <- summarise(group_by(ExperimentalData, Participant_Number), propYes = mean(Response), numYes = sum(Response), maxRT = max(RT), minRT = min(RT), sdRT = sd(RT), meanRT = mean(RT), total_trials = n(), TotalTime = sum(RT)/60, sex = unique(Sex.2.male.3.female.4.other.), target = paste(unique(Target_Type), collapse = ','))
 
 Experimental_Summary_byTRGT <- summarise(group_by(ExperimentalData, Target_Type), propYes = mean(Response), maxRT = max(RT), minRT = min(RT), sdRT = sd(RT), meanRT = mean(RT), total_trials = n(), total_ptpts = length(unique(Participant_Number)))
 
@@ -367,9 +379,11 @@ Experimental_Summary_byRelIWCor_CI <- summarise(group_by(ExperimentalData_CI, Re
 Now let's go ahead and do the scatter plots so get an idea of the relationships before we do the formal stats. Here we can also identify outliers. 
 
 ```{r CI IWCor-pYes scatter}
-
+postscript("~/Dropbox/Thesis/Figures/IWcorCIexp2.eps", height = 5, pointsize = 16, horizontal = F)
+par(mar=c(5,4,2,2)+0.1, oma=c(0,0,0,0))
 with(filter(Experimental_Summary_byRelIWCor_CI), plot(IWcor, pYes, pch=16, cex=0.5, xlab = "Image-wise correlation between trial image and classification image", ylab = "Proportion of \"yes\" responses by participants"))
-
+with(Experimental_Summary_byRelIWCor_CI, abline(lm(pYes ~ IWcor)))
+dev.off()
 ```
 
 Now we can go ahead and calculate the correlations here.
@@ -380,6 +394,31 @@ with(Experimental_Summary_byRelIWCor_CI, cor.test(pYes,IWcor))
 
 ```
 
+```{r fit sigmoid curve}
+
+sigmoid = function(params, x) {
+  1/ (1 + exp(-params[1] * (x - params[2])))
+}
+
+fitmodel <- with(Experimental_Summary_byRelIWCor_CI, nls(pYes~1/(1 + exp(-b * (IWcor-c))), start=list(b=10,c=0)))
+
+# get the coefficients using the coef function
+params=coef(fitmodel)
+
+with(Experimental_Summary_byRelIWCor_CI, plot(sigmoid(params,IWcor), pYes))
+with(Experimental_Summary_byRelIWCor_CI, cor.test(sigmoid(params,IWcor), pYes))
+
+```
+
+```{r CI Analysis Image-Wise Cor Plot, echo=FALSE}
+postscript("~/Dropbox/Thesis/Figures/IWcorCIexp2.eps", height = 5, pointsize = 16, horizontal = F)
+par(mar=c(5,4,2,2)+0.1, oma=c(0,0,0,0))
+with(filter(Experimental_Summary_byRelIWCor_CI), plot(IWcor, pYes, pch=16, cex=0.5, xlab = "Image-wise correlation between trial image and classification image", ylab = "Proportion of \"yes\" responses by participants"))
+
+with(Experimental_Summary_byRelIWCor_CI,lines(sort(IWcor), sort(predict(fitmodel)), col ='black'))
+
+dev.off()
+```
 
 ```{r CI Analysis Image-Wise Cor Plot, echo=FALSE}
 with(Experimental_Summary_byRelIWCor_CI, plot(IWcor, pYes, pch=16, cex=0.5, ylim = c(0,1), ylab = "Proportion of \"yes\" responses by participants", xlab = "Image-wise correlation between trial image and classification image"))
@@ -419,8 +458,67 @@ with(filter(Experimental_Summary_byRelIWCor, !is.na(RelIWCorGroup)), cor.test(pY
 ```
 
 ```{r Analysis Image-Wise Cor Plot, echo=FALSE}
+postscript("~/Dropbox/Thesis/Figures/IWcorTargetExp2.eps", height = 5, pointsize = 16, horizontal = F)
+par(mar=c(5,4,2,2)+0.1, oma=c(0,0,0,0))
 with(filter(Experimental_Summary_byRelIWCor, !is.na(RelIWCorGroup)), plot(IWcor, pYes, pch=16, cex=0.5, ylab = "Proportion of \"yes\" responses by participants", xlab = "Image-wise correlation between trial image and target image"))
 with(filter(Experimental_Summary_byRelIWCor, !is.na(RelIWCorGroup)), abline(lm(pYes ~ IWcor)))
+dev.off()
 
 ```
 
+```{r CI correlation analysis, echo=T}
+load("imagesExp2.RData")
+
+TargetIms <- readMat("targets4.mat")
+
+TargX <- imager::as.cimg(TargetIms$x)
+TargXI <- imager::as.cimg(TargetIms$xi)
+TargPI <- imager::as.cimg(TargetIms$pi)
+TargP <- imager::as.cimg(TargetIms$p)
+
+remove(TargetIms)
+
+Exp2X <- imager::as.cimg(rowSums(cbind(images$image11, images$image15)))
+Exp2P <- imager::as.cimg(rowSums(cbind(images$image12, images$image16)))
+Exp2PI <- imager::as.cimg(rowSums(cbind(images$image13, images$image17)))
+Exp2XI <- imager::as.cimg(rowSums(cbind(images$image14, images$image18)))
+
+Correct_Target <- matrix(nrow=4, ncol=4)
+rownames(Correct_Target) <- c("x","p","xi","pi")
+colnames(Correct_Target) <- c("Correct", "High Similarity", "Low Similarity 1", "Low Similarity 2")
+
+#Calculations for 'x' target
+Correct_Target['x',1] <- cor(as.vector(imager::isoblur(Exp2X, sigma = 4, gaussian = T)[,,1,1]), as.vector(TargX[,,1,1]))
+Correct_Target['x',2] <-cor(as.vector(imager::isoblur(Exp2X, sigma = 4, gaussian = T)[,,1,1]), as.vector(TargXI[,,1,1]))
+Correct_Target['x',3] <-cor(as.vector(imager::isoblur(Exp2X, sigma = 4, gaussian = T)[,,1,1]), as.vector(TargPI[,,1,1]))
+Correct_Target['x',4] <-cor(as.vector(imager::isoblur(Exp2X, sigma = 4, gaussian = T)[,,1,1]), as.vector(TargP[,,1,1]))
+
+#Calculations for 'p' target
+Correct_Target['p',4] <- cor(as.vector(imager::isoblur(Exp2P, sigma = 4, gaussian = T)[,,1,1]), as.vector(TargX[,,1,1]))
+Correct_Target['p',3] <-cor(as.vector(imager::isoblur(Exp2P, sigma = 4, gaussian = T)[,,1,1]), as.vector(TargXI[,,1,1]))
+Correct_Target['p',2] <-cor(as.vector(imager::isoblur(Exp2P, sigma = 4, gaussian = T)[,,1,1]), as.vector(TargPI[,,1,1]))
+Correct_Target['p',1] <-cor(as.vector(imager::isoblur(Exp2P, sigma = 4, gaussian = T)[,,1,1]), as.vector(TargP[,,1,1]))
+
+#Calculations for 'xi' target
+Correct_Target['xi',2] <- cor(as.vector(imager::isoblur(Exp2X, sigma = 4, gaussian = T)[,,1,1]), as.vector(TargX[,,1,1]))
+Correct_Target['xi',1] <-cor(as.vector(imager::isoblur(Exp2X, sigma = 4, gaussian = T)[,,1,1]), as.vector(TargXI[,,1,1]))
+Correct_Target['xi',3] <-cor(as.vector(imager::isoblur(Exp2X, sigma = 4, gaussian = T)[,,1,1]), as.vector(TargPI[,,1,1]))
+Correct_Target['xi',4] <-cor(as.vector(imager::isoblur(Exp2X, sigma = 4, gaussian = T)[,,1,1]), as.vector(TargP[,,1,1]))
+
+#Calculations for 'pi' target
+Correct_Target['pi',4] <- cor(as.vector(imager::isoblur(Exp2PI, sigma = 4, gaussian = T)[,,1,1]), as.vector(TargX[,,1,1]))
+Correct_Target['pi',3] <-cor(as.vector(imager::isoblur(Exp2PI, sigma = 4, gaussian = T)[,,1,1]), as.vector(TargXI[,,1,1]))
+Correct_Target['pi',1] <-cor(as.vector(imager::isoblur(Exp2PI, sigma = 4, gaussian = T)[,,1,1]), as.vector(TargPI[,,1,1]))
+Correct_Target['pi',2] <-cor(as.vector(imager::isoblur(Exp2PI, sigma = 4, gaussian = T)[,,1,1]), as.vector(TargP[,,1,1]))
+
+Backwards_prediction_accuracy <- matrix(nrow=2,ncol=3)
+colnames(Backwards_prediction_accuracy) <- c("Correct Target", "High Similarity Target", "Low Similarity Target")
+rownames(Backwards_prediction_accuracy) <- c("Mean", "SD")
+
+Backwards_prediction_accuracy[,"Correct Target"] <- c(mean(Correct_Target[,1]),sd(Correct_Target[,1]))
+
+Backwards_prediction_accuracy[,"High Similarity Target"] <- c(mean(Correct_Target[,2]),sd(Correct_Target[,2]))
+
+Backwards_prediction_accuracy[,"Low Similarity Target"] <- c(mean(Correct_Target[,3:4]),sd(Correct_Target[,3:4]))
+
+```
